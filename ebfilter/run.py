@@ -139,13 +139,14 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
         reg_start = int(region_match.group(2))
         reg_end = int(region_match.group(3))
 
+    ctrl_db_tabix = pysam.TabixFile(control_database)
     hIN = open(targetMutationFile, 'r')
     hOUT = open(outputPath, 'w')
 
     for line in hIN:
 
-        F = line.rstrip('\n').split('\t')
-        chrom, pos, pos2, ref, alt = F[0], F[1], F[2], F[3], F[4]
+        inF = line.rstrip('\n').split('\t')
+        chrom, pos, pos2, ref, alt = inF[0], inF[1], inF[2], inF[3], inF[4]
         if alt == "-": pos = str(int(pos) - 1)
 
         if is_loption == True and region != "":
@@ -175,7 +176,7 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
             alpha_p, beta_p, alpha_n, beta_n = None, None, None, None
             for record_line in records:
                 F = record_line.split("\t")
-                if F[0] == chorm and F[1] == pos:
+                if F[0] == chrom and F[1] == pos:
                     if ((F[4] == var)
                     or (var.startswith("+") and F[4] == "<INS>")
                     or (var.startswith("-") and F[4] == "<DEL>")):
@@ -190,14 +191,14 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
 
             if alpha_p == None or beta_p == None or alpha_n == None or beta_n == None:
                 # debug
-                # print(f"NOT Using Database! {vcf_record.CHROM},{vcf_record.POS},{vcf_record.REF},{vcf_record.ALT[0].value}")
+                # print(f"NOT Using Database! {chrom},{pos},{ref},{alt}")
                 F_control = process_anno.pileup1line(controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, param_region)
                 alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
 
             EB_score = get_eb_score.get_eb_score(var, F_target, base_qual_thres, controlFileNum, alpha_p, beta_p, alpha_n, beta_n)
 
         # add the score and write the vcf record
-        print('\t'.join(F + [str(EB_score)]), file=hOUT)
+        print('\t'.join(inF + [str(EB_score)]), file=hOUT)
 
     hIN.close()
     hOUT.close()
