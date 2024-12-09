@@ -106,7 +106,22 @@ def vcf2pileup(inputFilePath, outputFilePath, bamPath, mapping_qual_thres, base_
     hOUT.close()
 
 
-if __name__ == "__main__":
-    import sys
-    vcf2bed(sys.argv[1], sys.argv[2])
- 
+def pileup1line(bamPath, mapping_qual_thres, base_qual_thres, filter_flags, region):
+
+
+    samtools_mpileup_commands = ["samtools", "mpileup", "-B", "-d", "10000000", "-q", str(mapping_qual_thres), "-Q", str(base_qual_thres), "--ff", filter_flags, "-r", region, "-b", bamPath]
+
+    ret = subprocess.run(samtools_mpileup_commands, stdout = subprocess.PIPE)
+
+    if ret.returncode != 0:
+        print(f"return code: {ret.returncode}", file=sys.stderr)
+        print(f"stderr: {ret.stderr.decode()}", file=sys.stderr)
+        sys.exit(ret.returncode)
+
+    F = ret.stdout.decode().rstrip('\n').split('\t')
+
+    retF = F[3:] if len(F) > 3 else []
+
+    return retF
+
+

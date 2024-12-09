@@ -8,7 +8,7 @@ here = path.abspath(path.dirname(__file__))
 
 setup(
     name='ebfilter',
-    version='0.2.2',
+    version='0.3.0',
     description='Python tools for filtering somatic mutations using beta-binomial sequencing error model.',
     url='https://github.com/friend1ws/EBFilter',
     author = 'Yuichi Shiraishi',

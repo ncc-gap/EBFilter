@@ -5,7 +5,8 @@ from . import beta_binomial
 from . import utils
 import math, numpy
 
-def get_eb_score(var, F_target, F_control, base_qual_thres, controlFileNum):
+
+def get_eb_score(var, F_target, base_qual_thres, controlFileNum, alpha_p, beta_p, alpha_n, beta_n):
 
     """calculate the EBCall score from pileup bases of tumor and control samples"""
 
@@ -14,20 +15,6 @@ def get_eb_score(var, F_target, F_control, base_qual_thres, controlFileNum):
         varCounts_target_p, depthCounts_target_p, varCounts_target_n, depthCounts_target_n = control_count.varCountCheck(var, F_target[0], F_target[1], F_target[2], base_qual_thres, False)
     else:
         varCounts_target_p, depthCounts_target_p, varCounts_target_n, depthCounts_target_n = 0, 0, 0, 0
-
-    varCounts_control_p = [0] * controlFileNum
-    varCounts_control_n = [0] * controlFileNum
-    depthCounts_control_p = [0] * controlFileNum
-    depthCounts_control_n = [0] * controlFileNum
-
-    # obtain the mismatch numbers and depths (for positive and negative strands) of control sequence data
-    # for i in range(controlFileNum):
-    for i in range(len(F_control) // 3):
-        varCounts_control_p[i], depthCounts_control_p[i], varCounts_control_n[i], depthCounts_control_n[i] = control_count.varCountCheck(var, F_control[3 * i], F_control[1 + 3 * i], F_control[2 + 3 * i], base_qual_thres, True)
-
-    # estimate the beta-binomial parameters for positive and negative strands
-    alpha_p, beta_p = beta_binomial.fit_beta_binomial(numpy.array(depthCounts_control_p), numpy.array(varCounts_control_p))
-    alpha_n, beta_n = beta_binomial.fit_beta_binomial(numpy.array(depthCounts_control_n), numpy.array(varCounts_control_n))
 
     # evaluate the p-values of target mismatch numbers for positive and negative strands
     pvalue_p = beta_binomial.beta_binom_pvalue([alpha_p, beta_p], depthCounts_target_p, varCounts_target_p)
@@ -44,4 +31,26 @@ def get_eb_score(var, F_target, F_control, base_qual_thres, controlFileNum):
         EB_score = - round(math.log10(EB_pvalue), 3)
 
     return EB_score
+
+
+def get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum):
+
+    """calculate the EBCall score from pileup bases of tumor and control samples"""
+
+    varCounts_control_p = [0] * controlFileNum
+    varCounts_control_n = [0] * controlFileNum
+    depthCounts_control_p = [0] * controlFileNum
+    depthCounts_control_n = [0] * controlFileNum
+
+    # obtain the mismatch numbers and depths (for positive and negative strands) of control sequence data
+    # for i in range(controlFileNum):
+    for i in range(len(F_control) // 3):
+        varCounts_control_p[i], depthCounts_control_p[i], varCounts_control_n[i], depthCounts_control_n[i] = control_count.varCountCheck(var, F_control[3 * i], F_control[1 + 3 * i], F_control[2 + 3 * i], base_qual_thres, True)
+
+    # estimate the beta-binomial parameters for positive and negative strands
+    alpha_p, beta_p = beta_binomial.fit_beta_binomial(numpy.array(depthCounts_control_p), numpy.array(varCounts_control_p))
+    alpha_n, beta_n = beta_binomial.fit_beta_binomial(numpy.array(depthCounts_control_n), numpy.array(varCounts_control_n))
+
+    return alpha_p, beta_p, alpha_n, beta_n
+
 
