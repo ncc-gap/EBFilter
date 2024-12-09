@@ -206,7 +206,6 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
     # delete intermediate files
     if debug_mode == False:
         subprocess.check_call(["rm", outputPath + '.target.pileup'])
-        subprocess.check_call(["rm", outputPath + '.control.pileup'])
 
 
 def ebfilter_main(args):
@@ -266,7 +265,7 @@ def ebfilter_main(args):
     if thread_num == 1:
         # non multi-threading mode
         if is_anno == True:
-            EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, outputPath, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode)
+            EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, outputPath, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode, control_panel_database)
         else: 
             EBFilter_worker_vcf(targetMutationFile, targetBamPath, controlBamPathList, outputPath, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode, control_panel_database)
     else:
@@ -281,7 +280,7 @@ def ebfilter_main(args):
             jobs = []
             for i in range(thread_num):
                 process = multiprocessing.Process(target = EBFilter_worker_anno, args = \
-                    (outputPath + ".tmp.input.anno." + str(i), targetBamPath, controlBamPathList, outputPath + "." + str(i), mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode))
+                    (outputPath + ".tmp.input.anno." + str(i), targetBamPath, controlBamPathList, outputPath + "." + str(i), mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode, control_panel_database))
                 jobs.append(process)
                 process.start()
         
@@ -306,7 +305,7 @@ def ebfilter_main(args):
             jobs = []
             for i in range(thread_num):
                 process = multiprocessing.Process(target = EBFilter_worker_vcf, args = \
-                    (outputPath + ".tmp.input.vcf." + str(i), targetBamPath, controlBamPathList, outputPath + "." + str(i), mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode))
+                    (outputPath + ".tmp.input.vcf." + str(i), targetBamPath, controlBamPathList, outputPath + "." + str(i), mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode, control_panel_database))
                 jobs.append(process)
                 process.start()
 
@@ -322,7 +321,6 @@ def ebfilter_main(args):
                 for i in range(thread_num):
                     subprocess.check_call(["rm", outputPath + ".tmp.input.vcf." + str(i)])
                     subprocess.check_call(["rm", outputPath + "." + str(i)])
-
 
 
 def create_control_panel_database_worker(targetMutationFile, controlBamPathList, outputPath, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region):
@@ -352,18 +350,6 @@ def create_control_panel_database_worker(targetMutationFile, controlBamPathList,
     ##########
     # generate pileup files
     process_vcf.vcf2pileup(outputPath +'.tmp.vcf', outputPath + '.control.pileup', controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, True, is_loption, region)
-    ##########
-
-    ##########
-    # load pileup files
-    pos2pileup_control = {}
-
-    hIN = open(outputPath + '.control.pileup')
-    for line in hIN:
-        F = line.rstrip('\n').split('\t')
-        pos2pileup_control[F[0] + '\t' + F[1]] = '\t'.join(F[3:])
-    hIN.close()
-    ##########
 
     vcf_reader = vcfpy.Reader.from_path(targetMutationFile)
     vcf_reader.header.add_info_line(vcfpy.OrderedDict([('ID','AP'), ('Number','1'), ('Type','Float'), ('Description','Alpha which estimates the beta-binomial parameters for positive strands')]))
@@ -372,29 +358,41 @@ def create_control_panel_database_worker(targetMutationFile, controlBamPathList,
     vcf_reader.header.add_info_line(vcfpy.OrderedDict([('ID','BN'), ('Number','1'), ('Type','Float'), ('Description','Beta which estimates the beta-binomial parameters for negative strands')]))
     vcf_writer = vcfpy.Writer.from_path(outputPath, vcf_reader.header)
 
-    for vcf_record in vcf_reader:
-        current_pos = str(vcf_record.CHROM) + '\t' + str(vcf_record.POS) 
+    with open(outputPath + '.control.pileup', 'r') as hin:
+        pileup = hin.readline()
+        l_pileup = pileup.strip("\n").split("\t") if pileup else None
 
-        F_control = pos2pileup_control[current_pos].split('\t') if current_pos in pos2pileup_control else []
+        # count = 0
+        for vcf_record in vcf_reader:
 
-        current_ref = str(vcf_record.REF)
-        current_alt = str(vcf_record.ALT[0].value)
-        var = ""
-        if len(current_ref) == 1 and len(current_alt) == 1:
-            var = current_alt
-        elif current_alt == "INS":
-            var = "+N" 
-        elif current_alt == "DEL":
-            var = "-N" 
+            while l_pileup and (l_pileup[0] != str(vcf_record.CHROM) or (l_pileup[0] == str(vcf_record.CHROM) and int(l_pileup[1]) < int(vcf_record.POS))):
+                pileup = hin.readline()
+                l_pileup = pileup.strip("\n").split("\t") if pileup else None
+            F_control = []
+            if l_pileup and (l_pileup[0] == str(vcf_record.CHROM) and int(l_pileup[1]) == int(vcf_record.POS)):
+                F_control = l_pileup[3:]
 
-        alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
+            current_ref = str(vcf_record.REF)
+            current_alt = str(vcf_record.ALT[0].value)
+            var = ""
+            if len(current_ref) == 1 and len(current_alt) == 1:
+                var = current_alt
+            elif current_alt == "INS":
+                var = "+N"
+            elif current_alt == "DEL":
+                var = "-N"
 
-        # add the score and write the vcf record
-        vcf_record.INFO['AP'] = round(alpha_p, 4)
-        vcf_record.INFO['BP'] = round(beta_p, 4)
-        vcf_record.INFO['AN'] = round(alpha_n, 4)
-        vcf_record.INFO['BN'] = round(beta_n, 4)
-        vcf_writer.write_record(vcf_record)
+            alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
+
+            # add the score and write the vcf record
+            vcf_record.INFO['AP'] = round(alpha_p, 4)
+            vcf_record.INFO['BP'] = round(beta_p, 4)
+            vcf_record.INFO['AN'] = round(alpha_n, 4)
+            vcf_record.INFO['BN'] = round(beta_n, 4)
+            vcf_writer.write_record(vcf_record)
+
+            # count += 1
+            # if count % 10000 == 0: print(f"vcf line: {count}")
 
     vcf_writer.close()
 
@@ -429,12 +427,13 @@ def create_control_panel_database(args):
         for in_file in hIN:
             in_file = in_file.rstrip()
             if not os.path.exists(in_file):
-                print("No control bam file: " + in_file, file=sys.stderr) 
+                print("No control bam file: " + in_file, file=sys.stderr)
                 sys.exit(1)
 
             if not os.path.exists(in_file + ".bai") and not os.path.exists(re.sub(r'bam$', "bai", in_file)):
-                print("No index control bam file: " + in_file, file=sys.stderr) 
+                print("No index control bam file: " + in_file, file=sys.stderr)
                 sys.exit(1)
 
     create_control_panel_database_worker(targetMutationFile, controlBamPathList, outputPath, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region)
+
 
