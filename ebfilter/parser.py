@@ -50,7 +50,7 @@ def create_parser():
 
     main_parser.add_argument("--debug", default = False, action = 'store_true', help = "keep intermediate files")
 
-    main_parser.add_argument('--panel', metavar = "panel", default='', type=str,
+    main_parser.add_argument('--panel', metavar = "panel", required=True, type=str,
                         help = "control panel database(Tabix VCF)")
 
     main_parser.set_defaults(func = ebfilter_main)
@@ -68,8 +68,8 @@ def create_parser():
     panel_parser.add_argument("controlBamPathList", metavar = "controlBam_list.txt", type = str,
                               help = "the list of paths to control bam files")
 
-    panel_parser.add_argument("outputPath", metavar = "output.vcf", type = str,
-                             help = "the path to the output")
+    panel_parser.add_argument("outputPathPrefix", metavar = "/path/to/output", type = str,
+                             help = "the path to the output prefix")
 
     panel_parser.add_argument('-q', metavar = "mapping_qual_thres", default='20', type=int,
                         help = "threshold for mapping quality for calculating base counts")
@@ -84,6 +84,8 @@ def create_parser():
 
     panel_parser.add_argument("--region", default = '', type = str,
                         help = "restrict the chromosomal region for mutation. active only if loption is on")
+
+    panel_parser.add_argument("--debug", default = False, action = 'store_true', help = "keep intermediate files")
 
     panel_parser.set_defaults(func = create_control_panel_database)
     

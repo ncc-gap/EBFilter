@@ -69,6 +69,7 @@ def EBFilter_worker_vcf(targetMutationFile, targetBamPath, controlBamPathList, o
         EB_score = "." # if the variant is complex, we ignore that
         if not var == "":
 
+            records = None
             param_region = f"{vcf_record.CHROM}:{vcf_record.POS}-{vcf_record.POS}"
             try:
                 records = ctrl_db_tabix.fetch(region=param_region)
@@ -76,20 +77,21 @@ def EBFilter_worker_vcf(targetMutationFile, targetBamPath, controlBamPathList, o
                 print(inst.args, file = sys.stderr)
 
             alpha_p, beta_p, alpha_n, beta_n = None, None, None, None
-            for record_line in records:
-                F = record_line.split("\t")
-                if F[0] == vcf_record.CHROM and F[1] == str(vcf_record.POS):
-                    if ((F[4] == var)
-                    or (var.startswith("+") and F[4] == "<INS>")
-                    or (var.startswith("-") and F[4] == "<DEL>")):
-                        # debug
-                        # print(f"Using Database! {vcf_record.CHROM},{vcf_record.POS},{vcf_record.REF},{vcf_record.ALT[0].value}")
-                        for item in F[7].split(";"):
-                            key,val = item.split("=")
-                            if key == "AP": alpha_p = numpy.float64(val)
-                            if key == "BP": beta_p = numpy.float64(val)
-                            if key == "AN": alpha_n = numpy.float64(val)
-                            if key == "BN": beta_n = numpy.float64(val)
+            if records != None:
+                for record_line in records:
+                    F = record_line.split("\t")
+                    if F[0] == vcf_record.CHROM and F[1] == str(vcf_record.POS):
+                        if ((F[4] == var)
+                        or (var.startswith("+") and F[4] == "<INS>")
+                        or (var.startswith("-") and F[4] == "<DEL>")):
+                            # debug
+                            # print(f"Using Database! {vcf_record.CHROM},{vcf_record.POS},{vcf_record.REF},{vcf_record.ALT[0].value}")
+                            for item in F[7].split(";"):
+                                key,val = item.split("=")
+                                if key == "AP": alpha_p = numpy.float64(val)
+                                if key == "BP": beta_p = numpy.float64(val)
+                                if key == "AN": alpha_n = numpy.float64(val)
+                                if key == "BN": beta_n = numpy.float64(val)
 
             if alpha_p == None or beta_p == None or alpha_n == None or beta_n == None:
                 # debug
@@ -167,6 +169,7 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
         EB_score = "." # if the variant is complex, we ignore that
         if not var == "":
 
+            records = None
             param_region = f"{chrom}:{pos}-{pos}"
             try:
                 records = ctrl_db_tabix.fetch(region=param_region)
@@ -174,20 +177,22 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
                 print(inst.args, file = sys.stderr)
 
             alpha_p, beta_p, alpha_n, beta_n = None, None, None, None
-            for record_line in records:
-                F = record_line.split("\t")
-                if F[0] == chrom and F[1] == pos:
-                    if ((F[4] == var)
-                    or (var.startswith("+") and F[4] == "<INS>")
-                    or (var.startswith("-") and F[4] == "<DEL>")):
-                        # debug
-                        # print(f"Using Database! {chrom},{pos},{ref},{alt}")
-                        for item in F[7].split(";"):
-                            key,val = item.split("=")
-                            if key == "AP": alpha_p = numpy.float64(val)
-                            if key == "BP": beta_p = numpy.float64(val)
-                            if key == "AN": alpha_n = numpy.float64(val)
-                            if key == "BN": beta_n = numpy.float64(val)
+            
+            if records != None:
+                for record_line in records:
+                    F = record_line.split("\t")
+                    if F[0] == chrom and F[1] == pos:
+                        if ((F[4] == var)
+                        or (var.startswith("+") and F[4] == "<INS>")
+                        or (var.startswith("-") and F[4] == "<DEL>")):
+                            # debug
+                            # print(f"Using Database! {chrom},{pos},{ref},{alt}")
+                            for item in F[7].split(";"):
+                                key,val = item.split("=")
+                                if key == "AP": alpha_p = numpy.float64(val)
+                                if key == "BP": beta_p = numpy.float64(val)
+                                if key == "AN": alpha_n = numpy.float64(val)
+                                if key == "BN": beta_n = numpy.float64(val)
 
             if alpha_p == None or beta_p == None or alpha_n == None or beta_n == None:
                 # debug
@@ -324,7 +329,7 @@ def ebfilter_main(args):
                     subprocess.check_call(["rm", outputPath + "." + str(i)])
 
 
-def create_control_panel_database_worker(targetMutationFile, controlBamPathList, outputPath, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region):
+def create_control_panel_database_worker(targetMutationFile, controlBamPathList, outputPathPrefix, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode):
 
     import vcfpy
     from . import process_vcf
@@ -334,7 +339,7 @@ def create_control_panel_database_worker(targetMutationFile, controlBamPathList,
 
     controlFileNum = sum(1 for line in open(controlBamPathList, 'r'))
 
-    with open(targetMutationFile, "r") as hin, open(outputPath + '.tmp.vcf', "w") as hout:
+    with open(targetMutationFile, "r") as hin, open(outputPathPrefix + '.tmp.vcf', "w") as hout:
         for line in hin:
             if line.startswith("#"):
                 hout.write(line)
@@ -350,16 +355,19 @@ def create_control_panel_database_worker(targetMutationFile, controlBamPathList,
 
     ##########
     # generate pileup files
-    process_vcf.vcf2pileup(outputPath +'.tmp.vcf', outputPath + '.control.pileup', controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, True, is_loption, region)
+    process_vcf.vcf2pileup(outputPathPrefix +'.tmp.vcf', outputPathPrefix + '.control.pileup', controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, True, is_loption, region)
 
     vcf_reader = vcfpy.Reader.from_path(targetMutationFile)
-    vcf_reader.header.add_info_line(vcfpy.OrderedDict([('ID','AP'), ('Number','1'), ('Type','Float'), ('Description','Alpha which estimates the beta-binomial parameters for positive strands')]))
-    vcf_reader.header.add_info_line(vcfpy.OrderedDict([('ID','BP'), ('Number','1'), ('Type','Float'), ('Description','Beta which estimates the beta-binomial parameters for positive strands')]))
-    vcf_reader.header.add_info_line(vcfpy.OrderedDict([('ID','AN'), ('Number','1'), ('Type','Float'), ('Description','Alpha which estimates the beta-binomial parameters for negative strands')]))
-    vcf_reader.header.add_info_line(vcfpy.OrderedDict([('ID','BN'), ('Number','1'), ('Type','Float'), ('Description','Beta which estimates the beta-binomial parameters for negative strands')]))
-    vcf_writer = vcfpy.Writer.from_path(outputPath, vcf_reader.header)
 
-    with open(outputPath + '.control.pileup', 'r') as hin:
+    with open(outputPathPrefix + ".vcf", "w") as hout, open(outputPathPrefix + '.control.pileup', 'r') as hin:
+        hout.write('##fileformat=VCFv4.2\n')
+        hout.write('##reference=GRCh38\n')
+        hout.write('##INFO=<ID=AP,Number=1,Type=Float,Description="Alpha which estimates the beta-binomial parameters for positive strands">\n')
+        hout.write('##INFO=<ID=BP,Number=1,Type=Float,Description="Beta which estimates the beta-binomial parameters for positive strands">\n')
+        hout.write('##INFO=<ID=AN,Number=1,Type=Float,Description="Alpha which estimates the beta-binomial parameters for negative strands">\n')
+        hout.write('##INFO=<ID=BN,Number=1,Type=Float,Description="Beta which estimates the beta-binomial parameters for negative strands">\n')
+        hout.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
+
         pileup = hin.readline()
         l_pileup = pileup.strip("\n").split("\t") if pileup else None
 
@@ -380,33 +388,38 @@ def create_control_panel_database_worker(targetMutationFile, controlBamPathList,
                 var = current_alt
             elif current_alt == "INS":
                 var = "+N"
+                current_alt = "<INS>"
             elif current_alt == "DEL":
                 var = "-N"
+                current_alt = "<DEL>"
 
             alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
 
             # add the score and write the vcf record
-            vcf_record.INFO['AP'] = round(alpha_p, 4)
-            vcf_record.INFO['BP'] = round(beta_p, 4)
-            vcf_record.INFO['AN'] = round(alpha_n, 4)
-            vcf_record.INFO['BN'] = round(beta_n, 4)
-            vcf_writer.write_record(vcf_record)
+            hout.write(f"{str(vcf_record.CHROM)}\t{vcf_record.POS}\t.\t{current_ref}\t{current_alt}\t.\t.\tAP={round(alpha_p, 4)};BP={round(beta_p, 4)};AN={round(alpha_n, 4)};BN={round(beta_n, 4)}\n")
 
             # count += 1
             # if count % 10000 == 0: print(f"vcf line: {count}")
 
-    vcf_writer.close()
+    # delete intermediate files
+    if debug_mode == False:
+        subprocess.check_call(["rm", outputPathPrefix + '.control.pileup'])
+        subprocess.check_call(["rm", outputPathPrefix + '.tmp.vcf'])
+
+    subprocess.check_call(["bgzip", "-f", outputPathPrefix + ".vcf"])
+    subprocess.check_call(["tabix", "-p", "vcf", outputPathPrefix + ".vcf.gz"])
 
 
 def create_control_panel_database(args):
     targetMutationFile = args.targetMutationFile
     controlBamPathList = args.controlBamPathList
-    outputPath = args.outputPath
+    outputPathPrefix = args.outputPathPrefix
     is_loption = args.loption
     region = args.region
     mapping_qual_thres = args.q
     base_qual_thres = args.Q
     filter_flags = args.ff
+    debug_mode = args.debug
 
     # region format check
     if region != "":
@@ -435,6 +448,6 @@ def create_control_panel_database(args):
                 print("No index control bam file: " + in_file, file=sys.stderr)
                 sys.exit(1)
 
-    create_control_panel_database_worker(targetMutationFile, controlBamPathList, outputPath, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region)
+    create_control_panel_database_worker(targetMutationFile, controlBamPathList, outputPathPrefix, mapping_qual_thres, base_qual_thres, filter_flags, is_loption, region, debug_mode)
 
 
