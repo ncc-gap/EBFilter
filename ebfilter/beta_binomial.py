@@ -74,7 +74,7 @@ def fit_beta_binomial(As, Bs):
     """
 
     result = scipy.optimize.fmin_l_bfgs_b(beta_binomial_loglikelihood,
-                                          [20, 20],
+                                          [0.1, 10],
                                           args = (As, Bs),
                                           approx_grad = True,
                                           bounds = [(0.1, 10000000), (1, 10000000)])

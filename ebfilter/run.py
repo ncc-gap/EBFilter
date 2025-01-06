@@ -3,7 +3,7 @@
 from __future__ import print_function
 from . import get_eb_score
 import sys, os, subprocess, math, re, multiprocessing 
-import pysam, numpy
+import pysam, numpy, datetime
 
 region_exp = re.compile('^([^ \t\n\r\f\v,]+):(\d+)\-(\d+)')
 
@@ -371,8 +371,9 @@ def create_control_panel_database_worker(targetMutationFile, controlBamPathList,
         pileup = hin.readline()
         l_pileup = pileup.strip("\n").split("\t") if pileup else None
 
-        # count = 0
+        # count = 1
         for vcf_record in vcf_reader:
+            # print(f"{datetime.datetime.now()} line count: {count} Start")
 
             while l_pileup and (l_pileup[0] != str(vcf_record.CHROM) or (l_pileup[0] == str(vcf_record.CHROM) and int(l_pileup[1]) < int(vcf_record.POS))):
                 pileup = hin.readline()
@@ -398,8 +399,9 @@ def create_control_panel_database_worker(targetMutationFile, controlBamPathList,
             # add the score and write the vcf record
             hout.write(f"{str(vcf_record.CHROM)}\t{vcf_record.POS}\t.\t{current_ref}\t{current_alt}\t.\t.\tAP={round(alpha_p, 4)};BP={round(beta_p, 4)};AN={round(alpha_n, 4)};BN={round(beta_n, 4)}\n")
 
+            # print(f"{datetime.datetime.now()} line count: {count} End")
             # count += 1
-            # if count % 10000 == 0: print(f"vcf line: {count}")
+            # if count % 1000 == 0: print(f"{datetime.datetime.now()} vcf line: {count}")
 
     # delete intermediate files
     if debug_mode == False:
