@@ -33,7 +33,7 @@ class TestEBFilter(unittest.TestCase):
             print(cur_dir + "/../testdata/normalreference9.bam", file=hout)
             print(cur_dir + "/../testdata/normalreference10.bam", file=hout)
 
-        subprocess.check_call(["EBFilter", "main", "-f", "anno", in_anno, in_bam, control_panel, output_file, "--panel", in_panel])
+        subprocess.check_call(["EBFilter", "main", "-f", "anno", in_anno, in_bam, output_file, "--panel", in_panel, "-c", control_panel])
 
         answer_file = cur_dir + "/../testdata/output.golden.anno"
         self.assertTrue(filecmp.cmp(output_file, answer_file, shallow=False))
@@ -59,7 +59,7 @@ class TestEBFilter(unittest.TestCase):
             print(cur_dir + "/../testdata/normalreference9.bam", file=hout)
             print(cur_dir + "/../testdata/normalreference10.bam", file=hout)
 
-        subprocess.check_call(["EBFilter", "main", "-f", "vcf", in_vcf, in_bam, control_panel, output_file, "--panel", in_panel])
+        subprocess.check_call(["EBFilter", "main", "-f", "vcf", in_vcf, in_bam, output_file, "--panel", in_panel, "-c", control_panel])
 
         answer_file = cur_dir + "/../testdata/output.golden.vcf"
         self.assertTrue(filecmp.cmp(output_file, answer_file, shallow=False))
@@ -85,7 +85,7 @@ class TestEBFilter(unittest.TestCase):
 
         subprocess.check_call(["EBFilter", "panel", in_vcf, control_panel, output_prefix])
 
-        answer_file = cur_dir + "/../testdata/control_panel2.vcf.gz"
+        answer_file = cur_dir + "/../testdata/control_panel_golden.vcf.gz"
         self.assertTrue(filecmp.cmp(output_prefix+".vcf.gz", answer_file, shallow=False))
         shutil.rmtree(tmp_dir)
 

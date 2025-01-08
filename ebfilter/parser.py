@@ -6,7 +6,7 @@ import argparse
 def create_parser():
     parser = argparse.ArgumentParser(prog = "EBFilter")
     
-    parser.add_argument("--version", action = "version", version = "EBFilter-0.3.0")
+    parser.add_argument("--version", action = "version", version = "EBFilter-0.3.1")
 
     subparsers = parser.add_subparsers()
 
@@ -22,12 +22,12 @@ def create_parser():
     main_parser.add_argument("targetBamPath", metavar = "target.bam", type = str,
                               help = "the path to the target bam file")
     
-    main_parser.add_argument("controlBamPathList", metavar = "controlBam_list.txt", type = str,
-                              help = "the list of paths to control bam files")
-    
     main_parser.add_argument("outputPath", metavar = "output.vcf", type = str,
                               help = "the path to the output")
     
+    main_parser.add_argument('-c', metavar = "controlBam_list.txt", default=None, type=str,
+                        help = "the list of paths to control bam files")
+
     main_parser.add_argument('-f', choices=['vcf', 'anno'], default = 'vcf',
                         help = "the format of mutation file vcf or annovar (tsv) format")
     

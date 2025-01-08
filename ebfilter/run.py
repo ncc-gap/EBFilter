@@ -12,7 +12,7 @@ def EBFilter_worker_vcf(targetMutationFile, targetBamPath, controlBamPathList, o
     import vcfpy
     from . import process_vcf
 
-    controlFileNum = sum(1 for line in open(controlBamPathList, 'r'))
+    controlFileNum = sum(1 for line in open(controlBamPathList, 'r')) if controlBamPathList != None else 0
 
     ##########
     # generate pileup files
@@ -81,9 +81,10 @@ def EBFilter_worker_vcf(targetMutationFile, targetBamPath, controlBamPathList, o
                 for record_line in records:
                     F = record_line.split("\t")
                     if F[0] == vcf_record.CHROM and F[1] == str(vcf_record.POS):
-                        if ((F[4] == var)
-                        or (var.startswith("+") and F[4] == "<INS>")
-                        or (var.startswith("-") and F[4] == "<DEL>")):
+                        l_alts = F[4].split(",")
+                        if ((var in l_alts)
+                        or (var.startswith("+") and "<INS>" in l_alts)
+                        or (var.startswith("-") and "<DEL>" in l_alts)):
                             # debug
                             # print(f"Using Database! {vcf_record.CHROM},{vcf_record.POS},{vcf_record.REF},{vcf_record.ALT[0].value}")
                             for item in F[7].split(";"):
@@ -94,10 +95,14 @@ def EBFilter_worker_vcf(targetMutationFile, targetBamPath, controlBamPathList, o
                                 if key == "BN": beta_n = numpy.float64(val)
 
             if alpha_p == None or beta_p == None or alpha_n == None or beta_n == None:
-                # debug
-                # print(f"NOT Using Database! {vcf_record.CHROM},{vcf_record.POS},{vcf_record.REF},{vcf_record.ALT[0].value}")
-                F_control = process_vcf.pileup1line(controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, param_region)
-                alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
+                if controlBamPathList != None:
+                    # debug
+                    # print(f"NOT Using Database! {vcf_record.CHROM},{vcf_record.POS},{vcf_record.REF},{vcf_record.ALT[0].value}")
+                    F_control = process_vcf.pileup1line(controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, param_region)
+                    alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
+                else:
+                    print(f"No [{vcf_record.CHROM} {vcf_record.POS} {current_ref} {current_alt}] in the control database", file=sys.stderr)
+                    sys.exit(1)
 
             EB_score = get_eb_score.get_eb_score(var, F_target, base_qual_thres, controlFileNum, alpha_p, beta_p, alpha_n, beta_n)
 
@@ -117,7 +122,7 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
 
     from . import process_anno
 
-    controlFileNum = sum(1 for line in open(controlBamPathList, 'r'))
+    controlFileNum = sum(1 for line in open(controlBamPathList, 'r')) if controlBamPathList != None else 0
 
     ##########
     # generate pileup files
@@ -182,9 +187,10 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
                 for record_line in records:
                     F = record_line.split("\t")
                     if F[0] == chrom and F[1] == pos:
-                        if ((F[4] == var)
-                        or (var.startswith("+") and F[4] == "<INS>")
-                        or (var.startswith("-") and F[4] == "<DEL>")):
+                        l_alts = F[4].split(",")
+                        if ((var in l_alts)
+                        or (var.startswith("+") and "<INS>" in l_alts)
+                        or (var.startswith("-") and "<DEL>" in l_alts)):
                             # debug
                             # print(f"Using Database! {chrom},{pos},{ref},{alt}")
                             for item in F[7].split(";"):
@@ -195,10 +201,14 @@ def EBFilter_worker_anno(targetMutationFile, targetBamPath, controlBamPathList, 
                                 if key == "BN": beta_n = numpy.float64(val)
 
             if alpha_p == None or beta_p == None or alpha_n == None or beta_n == None:
-                # debug
-                # print(f"NOT Using Database! {chrom},{pos},{ref},{alt}")
-                F_control = process_anno.pileup1line(controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, param_region)
-                alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
+                if controlBamPathList != None:
+                    # debug
+                    # print(f"NOT Using Database! {chrom},{pos},{ref},{alt}")
+                    F_control = process_anno.pileup1line(controlBamPathList, mapping_qual_thres, base_qual_thres, filter_flags, param_region)
+                    alpha_p, beta_p, alpha_n, beta_n = get_eb_score.get_beta_binomial_alpha_and_beta(var, F_control, base_qual_thres, controlFileNum)
+                else:
+                    print(f"No [{chrom} {pos} {ref} {alt}] in the control database", file=sys.stderr)
+                    sys.exit(1)
 
             EB_score = get_eb_score.get_eb_score(var, F_target, base_qual_thres, controlFileNum, alpha_p, beta_p, alpha_n, beta_n)
 
@@ -219,9 +229,9 @@ def ebfilter_main(args):
     # should add validity check for arguments
     targetMutationFile = args.targetMutationFile
     targetBamPath = args.targetBamPath
-    controlBamPathList = args.controlBamPathList
     outputPath = args.outputPath
 
+    controlBamPathList = args.c
     mapping_qual_thres = args.q
     base_qual_thres = args.Q
     filter_flags = args.ff
@@ -252,21 +262,21 @@ def ebfilter_main(args):
         print("No index for target bam file: " + targetBamPath, file=sys.stderr)
         sys.exit(1)
 
+    if controlBamPathList != None:
+        if not os.path.exists(controlBamPathList):
+            print("No control list file: " + controlBamPathList, file=sys.stderr)
+            sys.exit(1)
 
-    if not os.path.exists(controlBamPathList):
-        print("No control list file: " + controlBamPathList, file=sys.stderr)
-        sys.exit(1)
+        with open(controlBamPathList) as hIN:
+            for in_file in hIN:
+                in_file = in_file.rstrip()
+                if not os.path.exists(in_file):
+                    print("No control bam file: " + in_file, file=sys.stderr) 
+                    sys.exit(1)
 
-    with open(controlBamPathList) as hIN:
-        for in_file in hIN:
-            in_file = in_file.rstrip()
-            if not os.path.exists(in_file):
-                print("No control bam file: " + in_file, file=sys.stderr) 
-                sys.exit(1)
-
-            if not os.path.exists(in_file + ".bai") and not os.path.exists(re.sub(r'bam$', "bai", in_file)):
-                print("No index control bam file: " + in_file, file=sys.stderr) 
-                sys.exit(1)
+                if not os.path.exists(in_file + ".bai") and not os.path.exists(re.sub(r'bam$', "bai", in_file)):
+                    print("No index control bam file: " + in_file, file=sys.stderr) 
+                    sys.exit(1)
 
     if thread_num == 1:
         # non multi-threading mode

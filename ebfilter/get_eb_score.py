@@ -22,11 +22,11 @@ def get_eb_score(var, F_target, base_qual_thres, controlFileNum, alpha_p, beta_p
 
     # perform Fisher's combination methods for integrating two p-values of positive and negative strands
     EB_pvalue = utils.fisher_combination([pvalue_p, pvalue_n])
-    EB_score = 0
+    EB_score = 0.0
     if EB_pvalue < 1e-60:
-        EB_score = 60
+        EB_score = 60.0
     elif EB_pvalue > 1.0 - 1e-10:
-        EB_score = 0
+        EB_score = 0.0
     else:
         EB_score = - round(math.log10(EB_pvalue), 3)
 
